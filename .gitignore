@@ -1,5 +1,5 @@
 # Build & Compilation
-build/
+build
 dist/
 out/
 *.exe

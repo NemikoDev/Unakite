@@ -35,5 +35,3 @@ require (
 	golang.org/x/text v0.37.0 // indirect
 	github.com/libp2p/go-libp2p v0.26.0 // indirect
 )
-
-// replace github.com/wailsapp/wails/v2 v2.13.0 => C:\Users\Emanuel\go\pkg\mod

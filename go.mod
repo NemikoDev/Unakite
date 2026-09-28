@@ -33,5 +33,4 @@ require (
 	golang.org/x/net v0.54.0 // indirect
 	golang.org/x/sys v0.44.0 // indirect
 	golang.org/x/text v0.37.0 // indirect
-	github.com/libp2p/go-libp2p v0.26.0 // indirect
 )

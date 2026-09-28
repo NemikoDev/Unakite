@@ -1,28 +1,48 @@
-import {useState} from 'react';
-import logo from './assets/images/logo-universal.png';
-import './App.css';
-import {Greet} from "../wailsjs/go/main/App";
+import { useState } from 'react';
+import { Layout } from './components/Layout';
+import { RoomJoin } from './components/room/RoomJoin';
+import { ChatView } from './components/chat/ChatView';
+import { RoomState, ChatMessage, Peer } from './types';
+import { mockMessages, mockPeer, mockTransfer } from './mocks/mockData';
 
-function App() {
-    const [resultText, setResultText] = useState("Please enter your name below 👇");
-    const [name, setName] = useState('');
-    const updateName = (e: any) => setName(e.target.value);
-    const updateResultText = (result: string) => setResultText(result);
-
-    function greet() {
-        Greet(name).then(updateResultText);
-    }
-
-    return (
-        <div id="App">
-            <img src={logo} id="logo" alt="logo"/>
-            <div id="result" className="result">{resultText}</div>
-            <div id="input" className="input-box">
-                <input id="name" className="input" onChange={updateName} autoComplete="off" name="input" type="text"/>
-                <button className="btn" onClick={greet}>Greet</button>
-            </div>
-        </div>
-    )
+function generateMockCode() {
+  return Math.random().toString(36).slice(2, 8).toUpperCase();
 }
 
-export default App
+export default function App() {
+  const [room, setRoom] = useState<RoomState>({ status: 'idle', roomCode: null, self: null, peer: null });
+  const [messages, setMessages] = useState<ChatMessage[]>(mockMessages);
+
+  const handleCreateRoom = (nickname: string) => {
+    const self: Peer = { id: 'self-' + Date.now(), nickname };
+    setRoom({ status: 'connected', roomCode: generateMockCode(), self, peer: mockPeer });
+  };
+
+  const handleJoinRoom = (nickname: string, code: string) => {
+    const self: Peer = { id: 'self-' + Date.now(), nickname };
+    setRoom({ status: 'connected', roomCode: code, self, peer: mockPeer });
+  };
+
+  const handleSendMessage = (content: string) => {
+    if (!room.self) return;
+    setMessages((prev) => [...prev, { id: String(prev.length + 1), sender: room.self!, content, timestamp: Date.now(), isOwn: true }]);
+  };
+
+  return (
+    <Layout>
+      {room.status !== 'connected' || !room.self ? (
+        <RoomJoin onCreateRoom={handleCreateRoom} onJoinRoom={handleJoinRoom} />
+      ) : (
+        <ChatView
+          roomCode={room.roomCode!}
+          self={room.self}
+          peer={room.peer}
+          messages={messages}
+          transfers={[mockTransfer]}
+          onSendMessage={handleSendMessage}
+          onSendFile={() => {}}
+        />
+      )}
+    </Layout>
+  );
+}

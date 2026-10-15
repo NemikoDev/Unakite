@@ -2,7 +2,10 @@ module Unakite
 
 go 1.26.0
 
-require github.com/wailsapp/wails/v2 v2.13.0
+require (
+	github.com/libp2p/go-libp2p v0.50.0
+	github.com/wailsapp/wails/v2 v2.13.0
+)
 
 require (
 	filippo.io/bigmod v0.1.1-0.20260103110540-f8a47775ebe5 // indirect
@@ -36,7 +39,6 @@ require (
 	github.com/leaanthony/u v1.1.1 // indirect
 	github.com/libp2p/go-buffer-pool v0.1.0 // indirect
 	github.com/libp2p/go-flow-metrics v0.3.0 // indirect
-	github.com/libp2p/go-libp2p v0.50.0 // indirect
 	github.com/libp2p/go-libp2p-asn-util v0.4.1 // indirect
 	github.com/libp2p/go-msgio v0.3.0 // indirect
 	github.com/libp2p/go-netroute v0.4.0 // indirect

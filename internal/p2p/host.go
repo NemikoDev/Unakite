@@ -41,20 +41,32 @@ func FullAddrs(h host.Host) ([]string, error) {
 	return out, nil
 }
 
-// Connect to a peer using its full multiaddr and return the peer ID
+// Connect
 func Connect(ctx context.Context, h host.Host, fullAddr string) (peer.ID, error) {
-	maddr, err := multiaddr.NewMultiaddr(fullAddr)
-	if err != nil {
-		return "", fmt.Errorf("parsing multiaddr: %w", err)
+	return ConnectAddrs(ctx, h, []string{fullAddr})
+}
+
+// dials one peer that is reachable at several addresses, same peerID is a must
+func ConnectAddrs(ctx context.Context, h host.Host, fullAddrs []string) (peer.ID, error) {
+	maddrs := make([]multiaddr.Multiaddr, 0, len(fullAddrs))
+	for _, s := range fullAddrs {
+		m, err := multiaddr.NewMultiaddr(s)
+		if err != nil {
+			return "", fmt.Errorf("parsing multiaddr %q: %w", s, err)
+		}
+		maddrs = append(maddrs, m)
 	}
 
-	info, err := peer.AddrInfoFromP2pAddr(maddr)
+	infos, err := peer.AddrInfosFromP2pAddrs(maddrs...)
 	if err != nil {
 		return "", fmt.Errorf("extracting peer info: %w", err)
 	}
-
-	if err := h.Connect(ctx, *info); err != nil {
-		return "", fmt.Errorf("connecting to %s: %w", info.ID, err)
+	if len(infos) != 1 {
+		return "", fmt.Errorf("addresses must all belong to exactly one peer, found %d", len(infos))
 	}
-	return info.ID, nil
+
+	if err := h.Connect(ctx, infos[0]); err != nil {
+		return "", fmt.Errorf("connecting to %s: %w", infos[0].ID, err)
+	}
+	return infos[0].ID, nil
 }

@@ -17,6 +17,7 @@ const (
 
 	maxAddrs   = 16
 	maxAddrLen = 256
+	MaxAddrs   = maxAddrs
 )
 
 // ErrNotFound is returned when a room code is not found in the store.

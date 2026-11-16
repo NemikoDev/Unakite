@@ -7,17 +7,18 @@ import (
 	"testing"
 	"time"
 
+	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/p2p/security/noise"
 )
 
-func newTestHost(t *testing.T) host.Host {
+func newTestHost(t *testing.T, opts ...libp2p.Option) host.Host {
 	t.Helper()
 	priv, _, err := identity.GenerateEphemeralIdentity()
 	if err != nil {
 		t.Fatalf("failed to generate ephemeral identity: %v", err)
 	}
-	h, err := NewHost(priv)
+	h, err := NewHost(priv, opts...)
 	if err != nil {
 		t.Fatalf("failed to create test host: %v", err)
 	}

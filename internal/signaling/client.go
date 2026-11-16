@@ -27,6 +27,7 @@ func NewClient(baseURL string) *Client {
 	}
 }
 
+// create a new room
 func (c *Client) CreateRoom(ctx context.Context, addrs []string) (string, error) {
 	var resp CreateRoomResponse
 	if err := c.call(ctx, "/rooms", CreateRoomRequest{Addrs: addrs}, &resp); err != nil {
@@ -38,6 +39,7 @@ func (c *Client) CreateRoom(ctx context.Context, addrs []string) (string, error)
 	return resp.Code, nil
 }
 
+// join a room
 func (c *Client) JoinRoom(ctx context.Context, code string) ([]string, error) {
 	code = strings.ToUpper(strings.TrimSpace(code))
 	if code == "" {
@@ -54,6 +56,7 @@ func (c *Client) JoinRoom(ctx context.Context, code string) ([]string, error) {
 	return resp.Addrs, nil
 }
 
+// makes a request to the server and returns the response
 func (c *Client) call(ctx context.Context, path string, body, out any) error {
 	var reqBody io.Reader
 	if body != nil {

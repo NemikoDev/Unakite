@@ -13,14 +13,15 @@ import (
 )
 
 // libp2p node using priv key. TCP made random & noise for security
-func NewHost(priv crypto.PrivKey) (host.Host, error) {
-	h, err := libp2p.New(
+func NewHost(priv crypto.PrivKey, opts ...libp2p.Option) (host.Host, error) {
+	base := []libp2p.Option{
 		libp2p.Identity(priv),
 		libp2p.ListenAddrStrings("/ip4/0.0.0.0/tcp/0"),
 		libp2p.Security(noise.ID, noise.New),
-	)
+	}
+	h, err := libp2p.New(append(base, opts...)...)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("creating host: %w", err)
 	}
 	return h, nil
 }

@@ -17,8 +17,14 @@ import (
 // protocol ID for the chat service
 const ChatProtocolID protocol.ID = "/poc-chat/1.0.0"
 
+const (
+	TypeChat  = ""
+	TypeHello = "Hello"
+)
+
 // JSON payload sent over stream
 type ChatMessage struct {
+	Type      string `json:"type,omitempty"`
 	Nickname  string `json:"nickname"`
 	Content   string `json:"content"`
 	Timestamp int64  `json:"timestamp"`

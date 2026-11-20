@@ -1,5 +1,7 @@
 package session
 
+// defines event types, payload structures, and the emitter function for session events.
+
 const (
 	EventMessage    = "chat:message"
 	EventPeerJoined = "room:peer-joined"

@@ -57,4 +57,8 @@ func (a *App) SendMessage(content string) (session.Message, error) {
 	return a.session.SendMessage(ctx, content)
 }
 
+func (a *App) GetState() session.State {
+	return a.session.State()
+}
+
 func (a *App) LeaveRoom() { a.session.Leave() }

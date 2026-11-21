@@ -8,3 +8,6 @@
   --color-text-dim: #8b8b92;
   --color-accent: #3b82f6;
 }
+
+html, body, #root { height: 100%; margin: 0; }
+body { overflow: hidden; }

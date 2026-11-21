@@ -3,11 +3,19 @@ import { EventsOn } from '../../wailsjs/runtime/runtime'
 
 // subscribes to a wails event and calls the handler when it fires
 export function useWailsEvent<T>(event: string, handler: (payload: T) => void) {
-    const saved = useRef(handler)
-    useEffect(() => {
-        saved.current = handler
+  const saved = useRef(handler);
+  useEffect(() => {
+    saved.current = handler;
+  });
+
+  useEffect(() => {
+    let active = true;
+    const off = EventsOn(event, (payload: T) => {
+      if (active) saved.current(payload);
     });
-    useEffect(() => {
-        EventsOn(event, (payload: T) => saved.current(payload))
-    }, [event])
+    return () => {
+      active = false;
+      off?.();
+    };
+  }, [event]);
 }

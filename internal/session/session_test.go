@@ -182,3 +182,53 @@ func TestSanitizePeerNickname(t *testing.T) {
 		t.Errorf("long nickname not truncated: %d runes", len([]rune(got)))
 	}
 }
+
+func TestSession_RoomExpiresIfNobodyJoins(t *testing.T) {
+	rec := newRecorder()
+	s := New(newSignaling(t), rec.emit)
+	s.waitForGuest = 50 * time.Millisecond
+	t.Cleanup(s.Leave)
+
+	if _, err := s.CreateRoom(testCtx(t), "Alice"); err != nil {
+		t.Fatalf("CreateRoom: %v", err)
+	}
+	closed := expect[RoomClosed](t, rec, EventRoomClosed)
+	if closed.Reason != "expired" {
+		t.Fatalf("reason %q, want expired", closed.Reason)
+	}
+	if s.State().InRoom {
+		t.Fatal("session should be empty after expiry")
+	}
+	if _, err := s.CreateRoom(testCtx(t), "Alice"); err != nil {
+		t.Fatalf("CreateRoom after expiry: %v", err)
+	}
+}
+
+func TestSession_RoomDoesNotExpireOnceGuestJoined(t *testing.T) {
+	sc := newSignaling(t)
+	atAlice := newRecorder()
+	alice, bob := New(sc, atAlice.emit), New(sc, nil)
+	alice.waitForGuest = 400 * time.Millisecond
+	t.Cleanup(func() { alice.Leave(); bob.Leave() })
+
+	code, err := alice.CreateRoom(testCtx(t), "Alice")
+	if err != nil {
+		t.Fatalf("CreateRoom: %v", err)
+	}
+	if err := bob.JoinRoom(testCtx(t), "Bob", code); err != nil {
+		t.Fatalf("JoinRoom: %v", err)
+	}
+	expect[PeerInfo](t, atAlice, EventPeerJoined)
+
+	time.Sleep(700 * time.Millisecond)
+
+	st := alice.State()
+	if !st.InRoom || st.Code != code || st.Peer == nil || st.Peer.Nickname != "Bob" {
+		t.Fatalf("unexpected state after the wait: %+v", st)
+	}
+	select {
+	case e := <-atAlice.ch:
+		t.Fatalf("unexpected event after join: %s", e.name)
+	default:
+	}
+}

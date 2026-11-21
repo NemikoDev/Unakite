@@ -22,9 +22,10 @@ import (
 )
 
 const (
-	maxNickname  = 32
-	maxMessage   = 4000
-	helloTimeout = 5 * time.Second
+	maxNickname         = 32
+	maxMessage          = 4000
+	helloTimeout        = 5 * time.Second
+	defaultWaitForGuest = 10 * time.Minute
 )
 
 var (
@@ -42,6 +43,9 @@ type room struct {
 	chat     *p2p.ChatService
 	notify   *network.NotifyBundle
 	self     PeerInfo
+	life     context.Context
+	end      context.CancelFunc
+	code     string
 	remote   peer.ID
 	peerNick string
 	peerHere bool
@@ -57,18 +61,20 @@ func (r *room) expectedPeer() peer.ID {
 
 // close the room and stop the signaling client
 func (r *room) close() {
+	r.end()
 	r.host.Network().StopNotify(r.notify)
 	r.chat.Close()
 	r.host.Close()
 }
 
 type Session struct {
-	sc   *signaling.Client
-	emit Emitter
-	opMu sync.Mutex
-	mu   sync.Mutex
-	cur  *room
-	seq  atomic.Uint64
+	sc           *signaling.Client
+	emit         Emitter
+	waitForGuest time.Duration
+	opMu         sync.Mutex
+	mu           sync.Mutex
+	cur          *room
+	seq          atomic.Uint64
 }
 
 // create a new session with the given signaling client and event emitter.
@@ -77,8 +83,9 @@ func New(sc *signaling.Client, emit Emitter) *Session {
 		emit = func(string, any) {}
 	}
 	return &Session{
-		sc:   sc,
-		emit: emit,
+		sc:           sc,
+		emit:         emit,
+		waitForGuest: defaultWaitForGuest,
 	}
 }
 
@@ -96,6 +103,10 @@ func (s *Session) CreateRoom(ctx context.Context, nickname string) (string, erro
 		s.abort(r)
 		return "", err
 	}
+	s.mu.Lock()
+	r.code = code
+	s.mu.Unlock()
+	go s.watchExpiry(r)
 	return code, nil
 }
 
@@ -116,6 +127,7 @@ func (s *Session) JoinRoom(ctx context.Context, nickname, code string) error {
 
 	s.mu.Lock()
 	r.remote = hostID
+	r.code = strings.ToUpper(strings.TrimSpace(code))
 	s.mu.Unlock()
 
 	hello := p2p.ChatMessage{Type: p2p.TypeHello, Nickname: r.self.Nickname, Timestamp: time.Now().UnixMilli()}
@@ -228,6 +240,7 @@ func (s *Session) newRoom(nickname string, hosting bool) (*room, error) {
 	}
 
 	r.host = h
+	r.life, r.end = context.WithCancel(context.Background())
 	r.self = PeerInfo{ID: h.ID().String(), Nickname: nickname}
 	r.chat = p2p.NewChatService(h, func(from peer.ID, m p2p.ChatMessage) { s.onChat(r, from, m) })
 	r.notify = &network.NotifyBundle{
@@ -341,4 +354,46 @@ func sanitizePeerNickname(s string) string {
 		return "Anonymous"
 	}
 	return s
+}
+
+// monitors the room for expiry, triggering if the guest does not arrive in time.
+func (s *Session) watchExpiry(r *room) {
+	t := time.NewTimer(s.waitForGuest)
+	defer t.Stop()
+	select {
+	case <-r.life.Done():
+	case <-t.C:
+		s.expireIfLonely(r)
+	}
+}
+
+func (s *Session) expireIfLonely(r *room) {
+	s.mu.Lock()
+	lonely := s.cur == r && !r.peerHere && r.gate.Guest() == ""
+	if lonely {
+		s.cur = nil
+	}
+	s.mu.Unlock()
+
+	if !lonely {
+		return
+	}
+	r.close()
+	s.emit(EventRoomClosed, RoomClosed{Reason: "expired"})
+}
+
+// reports what the session currently holds.
+func (s *Session) State() State {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	r := s.cur
+	if r == nil {
+		return State{}
+	}
+	st := State{InRoom: true, Code: r.code, Self: r.self}
+	if r.peerHere {
+		st.Peer = &PeerInfo{ID: r.expectedPeer().String(), Nickname: r.peerNick}
+	}
+	return st
 }

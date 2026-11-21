@@ -6,6 +6,10 @@ export function CreateRoom(arg1) {
   return window['go']['main']['App']['CreateRoom'](arg1);
 }
 
+export function GetState() {
+  return window['go']['main']['App']['GetState']();
+}
+
 export function JoinRoom(arg1, arg2) {
   return window['go']['main']['App']['JoinRoom'](arg1, arg2);
 }

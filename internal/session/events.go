@@ -8,6 +8,8 @@ const (
 	EventPeerLeft   = "room:peer-left"
 )
 
+const EventRoomClosed = "room:closed"
+
 // function type for emitting events to listeners
 type Emitter func(event string, payload any)
 
@@ -22,4 +24,15 @@ type Message struct {
 	Content   string   `json:"content"`
 	Timestamp int64    `json:"timestamp"`
 	IsOwn     bool     `json:"isOwn"`
+}
+
+type RoomClosed struct {
+	Reason string `json:"reason"`
+}
+
+type State struct {
+	InRoom bool      `json:"inRoom"`
+	Code   string    `json:"code"`
+	Self   PeerInfo  `json:"self"`
+	Peer   *PeerInfo `json:"peer"`
 }

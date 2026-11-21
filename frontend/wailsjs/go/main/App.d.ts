@@ -4,6 +4,8 @@ import {session} from '../models';
 
 export function CreateRoom(arg1:string):Promise<string>;
 
+export function GetState():Promise<session.State>;
+
 export function JoinRoom(arg1:string,arg2:string):Promise<void>;
 
 export function LeaveRoom():Promise<void>;

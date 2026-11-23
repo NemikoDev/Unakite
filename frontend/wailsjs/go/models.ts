@@ -58,6 +58,7 @@ export namespace session {
 	    code: string;
 	    self: PeerInfo;
 	    peer?: PeerInfo;
+	    closesAt: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new State(source);
@@ -69,6 +70,7 @@ export namespace session {
 	        this.code = source["code"];
 	        this.self = this.convertValues(source["self"], PeerInfo);
 	        this.peer = this.convertValues(source["peer"], PeerInfo);
+	        this.closesAt = source["closesAt"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

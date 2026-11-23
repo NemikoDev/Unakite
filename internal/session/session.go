@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"strconv"
 	"strings"
 	"sync"
@@ -26,6 +27,7 @@ const (
 	maxMessage          = 4000
 	helloTimeout        = 5 * time.Second
 	defaultWaitForGuest = 10 * time.Minute
+	defaultGracePeriod  = 5 * time.Minute
 )
 
 var (
@@ -49,6 +51,8 @@ type room struct {
 	remote   peer.ID
 	peerNick string
 	peerHere bool
+	closesAt time.Time
+	grace    *time.Timer
 }
 
 // returns the peer ID of the host or the guest if there is no host
@@ -67,10 +71,17 @@ func (r *room) close() {
 	r.host.Close()
 }
 
+func (r *room) stopGrace() {
+	if r.grace != nil {
+		r.grace.Stop()
+	}
+}
+
 type Session struct {
 	sc           *signaling.Client
 	emit         Emitter
 	waitForGuest time.Duration
+	gracePeriod  time.Duration
 	opMu         sync.Mutex
 	mu           sync.Mutex
 	cur          *room
@@ -86,6 +97,7 @@ func New(sc *signaling.Client, emit Emitter) *Session {
 		sc:           sc,
 		emit:         emit,
 		waitForGuest: defaultWaitForGuest,
+		gracePeriod:  defaultGracePeriod,
 	}
 }
 
@@ -180,6 +192,9 @@ func (s *Session) Leave() {
 	s.mu.Lock()
 	r := s.cur
 	s.cur = nil
+	if r != nil {
+		r.stopGrace()
+	}
 	s.mu.Unlock()
 
 	if r != nil {
@@ -217,6 +232,7 @@ func (s *Session) abort(r *room) {
 	if s.cur == r {
 		s.cur = nil
 	}
+	r.stopGrace()
 	s.mu.Unlock()
 	r.close()
 }
@@ -253,6 +269,7 @@ func (s *Session) newRoom(nickname string, hosting bool) (*room, error) {
 // handles an incoming chat message, classifying it and emitting the appropriate event.
 func (s *Session) onChat(r *room, from peer.ID, m p2p.ChatMessage) {
 	event, payload, replyHello := s.classify(r, from, m)
+	log.Printf("onChat: type=%q from=%s -> event=%q", m.Type, from, event)
 	if event == "" {
 		return
 	}
@@ -273,7 +290,7 @@ func (s *Session) classify(r *room, from peer.ID, m p2p.ChatMessage) (event stri
 
 	switch m.Type {
 	case p2p.TypeHello:
-		if r.peerHere {
+		if r.peerHere || !r.closesAt.IsZero() {
 			return "", nil, false
 		}
 		r.peerHere = true
@@ -311,15 +328,36 @@ func (s *Session) onDisconnected(r *room, n network.Network, c network.Conn) {
 	}
 
 	s.mu.Lock()
-	if s.cur != r || !r.peerHere || p != r.expectedPeer() {
+	if s.cur != r || p != r.expectedPeer() || !r.closesAt.IsZero() {
 		s.mu.Unlock()
 		return
 	}
 	r.peerHere = false
-	info := PeerInfo{ID: p.String(), Nickname: r.peerNick}
+	closesAt := time.Now().Add(s.gracePeriod)
+	r.closesAt = closesAt
+	r.grace = time.AfterFunc(s.gracePeriod, func() { s.closeAfterGrace(r) })
+	info := PeerLeft{
+		PeerInfo: PeerInfo{ID: p.String(), Nickname: r.peerNick},
+		ClosesAt: closesAt.UnixMilli(),
+	}
 	s.mu.Unlock()
 
 	s.emit(EventPeerLeft, info)
+}
+
+func (s *Session) closeAfterGrace(r *room) {
+	s.mu.Lock()
+	still := s.cur == r
+	if still {
+		s.cur = nil
+	}
+	s.mu.Unlock()
+
+	if !still {
+		return
+	}
+	r.close()
+	s.emit(EventRoomClosed, RoomClosed{Reason: "peer-left"})
 }
 
 // generates the next unique message ID for the session.
@@ -394,6 +432,9 @@ func (s *Session) State() State {
 	st := State{InRoom: true, Code: r.code, Self: r.self}
 	if r.peerHere {
 		st.Peer = &PeerInfo{ID: r.expectedPeer().String(), Nickname: r.peerNick}
+	}
+	if !r.closesAt.IsZero() {
+		st.ClosesAt = r.closesAt.UnixMilli()
 	}
 	return st
 }

@@ -9,6 +9,7 @@ export interface ChatMessage {
   content: string;
   timestamp: number;
   isOwn: boolean;
+  kind?: 'system';
 }
 
 export interface FileTransferItem {
@@ -27,4 +28,8 @@ export interface RoomState {
   roomCode: string | null;
   self: Peer | null;
   peer: Peer | null;
+}
+
+export interface PeerLeft extends Peer {
+  closesAt: number;
 }

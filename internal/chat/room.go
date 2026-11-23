@@ -4,5 +4,5 @@ func chat() string {
 	for {
 		break
 	}
-	return "Sex"
+	return "Hello"
 }

@@ -108,7 +108,7 @@ func TestSession_FullConversation(t *testing.T) {
 	}
 
 	bob.Leave()
-	left := expect[PeerInfo](t, atAlice, EventPeerLeft)
+	left := expect[PeerLeft](t, atAlice, EventPeerLeft)
 	if left.Nickname != "Bob" {
 		t.Fatalf("peer-left for %q, want Bob", left.Nickname)
 	}
@@ -230,5 +230,86 @@ func TestSession_RoomDoesNotExpireOnceGuestJoined(t *testing.T) {
 	case e := <-atAlice.ch:
 		t.Fatalf("unexpected event after join: %s", e.name)
 	default:
+	}
+}
+
+// Leaving
+
+func connectedPair(t *testing.T, grace time.Duration) (alice, bob *Session, atAlice, atBob *recorder) {
+	t.Helper()
+	sc := newSignaling(t)
+	atAlice, atBob = newRecorder(), newRecorder()
+	alice, bob = New(sc, atAlice.emit), New(sc, atBob.emit)
+	alice.gracePeriod, bob.gracePeriod = grace, grace
+	t.Cleanup(func() { alice.Leave(); bob.Leave() })
+
+	code, err := alice.CreateRoom(testCtx(t), "Alice")
+	if err != nil {
+		t.Fatalf("CreateRoom: %v", err)
+	}
+	if err := bob.JoinRoom(testCtx(t), "Bob", code); err != nil {
+		t.Fatalf("JoinRoom: %v", err)
+	}
+	expect[PeerInfo](t, atAlice, EventPeerJoined)
+	expect[PeerInfo](t, atBob, EventPeerJoined)
+	return alice, bob, atAlice, atBob
+}
+
+func TestSession_PeerLeaves_RoomClosesAfterGrace(t *testing.T) {
+	alice, bob, atAlice, _ := connectedPair(t, 150*time.Millisecond)
+
+	before := time.Now().UnixMilli()
+	bob.Leave()
+
+	left := expect[PeerLeft](t, atAlice, EventPeerLeft)
+	if left.Nickname != "Bob" || left.ClosesAt <= before {
+		t.Fatalf("unexpected peer-left payload: %+v", left)
+	}
+
+	// During the grace period the room is still there, but read-only.
+	st := alice.State()
+	if !st.InRoom || st.Peer != nil || st.ClosesAt != left.ClosesAt {
+		t.Fatalf("state during grace: %+v", st)
+	}
+	if _, err := alice.SendMessage(testCtx(t), "hello?"); !errors.Is(err, ErrNotPeer) {
+		t.Fatalf("send during grace: got %v, want ErrNoPeer", err)
+	}
+
+	// Then it closes itself, and the session is free to start over.
+	closed := expect[RoomClosed](t, atAlice, EventRoomClosed)
+	if closed.Reason != "peer-left" {
+		t.Fatalf("reason %q, want peer-left", closed.Reason)
+	}
+	if alice.State().InRoom {
+		t.Fatal("room should be gone after the grace period")
+	}
+	if _, err := alice.CreateRoom(testCtx(t), "Alice"); err != nil {
+		t.Fatalf("CreateRoom after close: %v", err)
+	}
+}
+
+func TestSession_HostLeaves_GuestIsToldToo(t *testing.T) {
+	alice, _, _, atBob := connectedPair(t, time.Minute)
+
+	alice.Leave()
+
+	left := expect[PeerLeft](t, atBob, EventPeerLeft)
+	if left.Nickname != "Alice" {
+		t.Fatalf("Bob sees %q leave, want Alice", left.Nickname)
+	}
+}
+
+func TestSession_LeaveDuringGraceCancelsTheTimer(t *testing.T) {
+	alice, bob, atAlice, _ := connectedPair(t, 100*time.Millisecond)
+
+	bob.Leave()
+	expect[PeerLeft](t, atAlice, EventPeerLeft)
+	alice.Leave() // user closes the room themselves
+
+	time.Sleep(300 * time.Millisecond) // well past the grace period
+	select {
+	case e := <-atAlice.ch:
+		t.Fatalf("unexpected event after Leave: %s", e.name)
+	default: // nothing fired: the timer was cancelled
 	}
 }

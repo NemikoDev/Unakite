@@ -18,6 +18,11 @@ type PeerInfo struct {
 	Nickname string `json:"nickname"`
 }
 
+type PeerLeft struct {
+	PeerInfo
+	ClosesAt int64 `json:"closesAt"`
+}
+
 type Message struct {
 	ID        string   `json:"id"`
 	Sender    PeerInfo `json:"sender"`
@@ -31,8 +36,9 @@ type RoomClosed struct {
 }
 
 type State struct {
-	InRoom bool      `json:"inRoom"`
-	Code   string    `json:"code"`
-	Self   PeerInfo  `json:"self"`
-	Peer   *PeerInfo `json:"peer"`
+	InRoom   bool      `json:"inRoom"`
+	Code     string    `json:"code"`
+	Self     PeerInfo  `json:"self"`
+	Peer     *PeerInfo `json:"peer"`
+	ClosesAt int64     `json:"closesAt"`
 }

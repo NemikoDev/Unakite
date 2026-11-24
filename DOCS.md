@@ -23,26 +23,7 @@ I wanted to understand how Go differs from Java in terms of design methodology, 
 
 Design architecture given below:
 
-┌─────────────────────────── User 1's machine ───────────────────────────┐
-│  React UI  <──bound calls / events──>  app.go  ──>  session.Session   │
-│                                                        │              │
-│                                  ┌─────────────────────┼───────────┐  │
-│                                  │ room (one per chat) │           │  │
-│                                  │  libp2p host + RoomGate         │  │
-│                                  │  ChatService   FileService      │  │
-│                                  └─────────────────────────────────┘  │
-└───────────────┬───────────────────────────────────────┬───────────────┘
-                │ HTTP: create/join code                │ libp2p (Noise)
-                ▼                                       │  (direct, or via relay)
-        ┌───────────────┐                               ▼
-        │ signaling     │                       ┌───────────────┐
-        │ server        │                       │     User2     │
-        │ code → addrs  │                       └───────────────┘
-        └───────────────┘
-                ▲  (optional)
-        ┌───────────────┐
-        │ relay         │
-        └───────────────┘
+![architecture](design.png)
 
 
 ## Application Layer

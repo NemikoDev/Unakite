@@ -18,7 +18,6 @@ Written in TypeScript and Go, with Wails acting as the framework which ties the 
 
 I wanted to understand how Go differs from Java in terms of design methodology, and how to effectively use it in production level software. The idea for a p2p chat room software came from my interest in internet privacy. It was either this, or working on a VPN proof-of-concept (which might come around, as I enjoy Go). I think Go is a solid language, and libp2p taught me more about networking than I thought it would.
 
-
 ## Architecture
 
 Design architecture given below:
@@ -28,25 +27,25 @@ Design architecture given below:
 
 ## Application Layer
 
-1. Identity
+#### 1. Identity
 
 GenerateEphemeralIdentity() returns a fresh Ed25519 key and its PeerID. Nothing is written to disk. A new one is created every time a room is created or joined, and dropped when the room closes, so nothing links one room to the next.
 
-2. p2p/host.go
+#### 2. p2p/host.go
 
 * NewHost(priv, opts...) starts a libp2p host on a random TCP port (/ip4/0.0.0.0/tcp/0) with Noise as the only security transport. Extra options (the gater, relay settings) are passed in.
 * FullAddrs(h) returns the host's addresses with /p2p/<PeerID> appended: a dialable string.
 * ConnectAddrs(ctx, h, addrs) parses addresses and requires them all to name exactly one peer, then dials. The Noise handshake then verifies the remote really is that peer. A forged PeerID fails.
 * Connect is the single-address wrapper.
 
-3. p2p/chat.go
+#### 3. p2p/chat.go
 
 * Registers protocol /poc-chat/1.0.0 on the host.
 * Messages are ChatMessage{Type, Nickname, Content, Timestamp} encoded as newline-delimited JSON (json.Encoder / json.Decoder).
 * One long-lived outbound stream per peer. Bytes on one stream arrive strictly in order. Opening a stream per message would let messages overtake each other.
 * On receive, libp2p calls handleStream in its own goroutine, which decodes in a loop and calls the onMessage(from, msg) callback. from is the authenticated PeerID.
 
-4. p2p/file.go
+#### 4. p2p/file.go
 
 One stream per file, independent of chat. Hence, a large transfer never blocks messages.
 
@@ -64,7 +63,7 @@ Timeouts: 2 minutes for a human to decide, 30 seconds of idle silence during tra
     * The receiver generates its own transfer IDs (r1, r2...), and the sender uses s1... The remote side never chooses an identifier.
 * FileService reports through two callbacks the session supplies: OnOffer (blocks while the human decides) and OnProgress (throttled to about 10 updates per second per transfer).
 
-6. Signaling
+#### 6. Signaling
 
 Store:
 
@@ -84,20 +83,18 @@ Client:
 
 Wraps both endpoints.
 
-
-7. p2p/room.go and p2p/relay.go
+#### 7. p2p/room.go and p2p/relay.go
 
 * CreateRoom(ctx, sc, h): publish this host's addresses, get a code.
 * JoinRoom(ctx, sc, h, code): consume the code, then ConnectAddrs to whatever it returns.
 * Relay: CreateRoomViaRelay waits until the host holds a reservation on the relay (a /p2p-circuit address appears), then publishes only relay addresses of the form <relay>/p2p/<relayID>/p2p-circuit/p2p/<hostID>. LAN addresses are not published.
 * HostRelayOptions / GuestRelayOptions set ForceReachabilityPrivate, enable hole punching, and for the host, register the static relay for auto-reservation.
 
-8. Session
+#### 8. Session
 
 Owns at most one room at a time and everything inside.
 
-
-9. app.go
+#### 9. app.go
 
 Creates a session at startup.
 

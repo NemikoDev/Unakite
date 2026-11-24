@@ -6,6 +6,7 @@ P2P network service, fully encrypted and anonymous
 * go run .\cmd\signaling\
 * wails dev
 
-### To Build
+### To Build Locally
 
 * wails build
+* run Unakite.exe in /build/bin

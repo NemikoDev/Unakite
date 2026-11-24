@@ -36,9 +36,23 @@ type RoomClosed struct {
 }
 
 type State struct {
-	InRoom   bool      `json:"inRoom"`
-	Code     string    `json:"code"`
-	Self     PeerInfo  `json:"self"`
-	Peer     *PeerInfo `json:"peer"`
-	ClosesAt int64     `json:"closesAt"`
+	InRoom    bool           `json:"inRoom"`
+	Code      string         `json:"code"`
+	Self      PeerInfo       `json:"self"`
+	Peer      *PeerInfo      `json:"peer"`
+	ClosesAt  int64          `json:"closesAt"`
+	Transfers []FileTransfer `json:"transfers"`
+}
+
+const EventFileTransfer = "file:transfer"
+
+type FileTransfer struct {
+	ID        string `json:"id"`
+	FileName  string `json:"fileName"`
+	FileSize  int64  `json:"fileSize"`
+	Direction string `json:"direction"`
+	Progress  int    `json:"progress"`
+	Status    string `json:"status"`
+	Error     string `json:"error,omitempty"`
+	Path      string `json:"path,omitempty"`
 }

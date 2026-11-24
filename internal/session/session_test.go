@@ -240,6 +240,7 @@ func connectedPair(t *testing.T, grace time.Duration) (alice, bob *Session, atAl
 	sc := newSignaling(t)
 	atAlice, atBob = newRecorder(), newRecorder()
 	alice, bob = New(sc, atAlice.emit), New(sc, atBob.emit)
+	alice.downloadDir, bob.downloadDir = t.TempDir(), t.TempDir()
 	alice.gracePeriod, bob.gracePeriod = grace, grace
 	t.Cleanup(func() { alice.Leave(); bob.Leave() })
 

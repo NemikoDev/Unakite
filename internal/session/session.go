@@ -40,19 +40,23 @@ var (
 )
 
 type room struct {
-	host     host.Host
-	gate     *p2p.RoomGate
-	chat     *p2p.ChatService
-	notify   *network.NotifyBundle
-	self     PeerInfo
-	life     context.Context
-	end      context.CancelFunc
-	code     string
-	remote   peer.ID
-	peerNick string
-	peerHere bool
-	closesAt time.Time
-	grace    *time.Timer
+	host      host.Host
+	gate      *p2p.RoomGate
+	chat      *p2p.ChatService
+	notify    *network.NotifyBundle
+	self      PeerInfo
+	life      context.Context
+	end       context.CancelFunc
+	code      string
+	remote    peer.ID
+	peerNick  string
+	peerHere  bool
+	closesAt  time.Time
+	grace     *time.Timer
+	files     *p2p.FileService
+	offers    map[string]chan bool
+	transfers map[string]FileTransfer
+	order     []string
 }
 
 // returns the peer ID of the host or the guest if there is no host
@@ -68,6 +72,7 @@ func (r *room) close() {
 	r.end()
 	r.host.Network().StopNotify(r.notify)
 	r.chat.Close()
+	r.files.Close()
 	r.host.Close()
 }
 
@@ -86,6 +91,7 @@ type Session struct {
 	mu           sync.Mutex
 	cur          *room
 	seq          atomic.Uint64
+	downloadDir  string
 }
 
 // create a new session with the given signaling client and event emitter.
@@ -98,6 +104,7 @@ func New(sc *signaling.Client, emit Emitter) *Session {
 		emit:         emit,
 		waitForGuest: defaultWaitForGuest,
 		gracePeriod:  defaultGracePeriod,
+		downloadDir:  DefaultDownloadDir(),
 	}
 }
 
@@ -259,6 +266,17 @@ func (s *Session) newRoom(nickname string, hosting bool) (*room, error) {
 	r.life, r.end = context.WithCancel(context.Background())
 	r.self = PeerInfo{ID: h.ID().String(), Nickname: nickname}
 	r.chat = p2p.NewChatService(h, func(from peer.ID, m p2p.ChatMessage) { s.onChat(r, from, m) })
+	r.offers = make(map[string]chan bool)
+	r.transfers = make(map[string]FileTransfer)
+	r.files = p2p.NewFileService(h, p2p.FileConfig{
+		Dir: s.downloadDir,
+		OnOffer: func(ctx context.Context, from peer.ID, o p2p.Offer) bool {
+			return s.onOffer(ctx, r, from, o)
+		},
+		OnProgress: func(p p2p.Progress) {
+			s.onFileProgress(r, p)
+		},
+	})
 	r.notify = &network.NotifyBundle{
 		DisconnectedF: func(n network.Network, c network.Conn) { s.onDisconnected(r, n, c) },
 	}
@@ -333,6 +351,7 @@ func (s *Session) onDisconnected(r *room, n network.Network, c network.Conn) {
 		return
 	}
 	r.peerHere = false
+	r.cancelOffers()
 	closesAt := time.Now().Add(s.gracePeriod)
 	r.closesAt = closesAt
 	r.grace = time.AfterFunc(s.gracePeriod, func() { s.closeAfterGrace(r) })
@@ -429,7 +448,11 @@ func (s *Session) State() State {
 	if r == nil {
 		return State{}
 	}
-	st := State{InRoom: true, Code: r.code, Self: r.self}
+	st := State{InRoom: true, Code: r.code, Self: r.self, Transfers: make([]FileTransfer, 0, len(r.order))}
+	for _, id := range r.order {
+		st.Transfers = append(st.Transfers, r.transfers[id])
+	}
+
 	if r.peerHere {
 		st.Peer = &PeerInfo{ID: r.expectedPeer().String(), Nickname: r.peerNick}
 	}

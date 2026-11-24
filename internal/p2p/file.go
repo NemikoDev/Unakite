@@ -91,6 +91,21 @@ func NewFileService(h host.Host, cfg FileConfig) *FileService {
 	return f
 }
 
+// checks if the file at the given path is valid for transfer, ensuring it is a regular file and within the allowed size limit.
+func (f *FileService) Preflight(path string) error {
+	info, err := os.Stat(path)
+	if err != nil {
+		return fmt.Errorf("reading file: %w", err)
+	}
+	if !info.Mode().IsRegular() {
+		return ErrNotRegularFile
+	}
+	if info.Size() > f.cfg.MaxSize {
+		return ErrFileTooLarge
+	}
+	return nil
+}
+
 func (f *FileService) Close() {
 	f.end()
 	f.host.RemoveStreamHandler(FileProtocolID)

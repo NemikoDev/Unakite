@@ -10,3 +10,8 @@ P2P network service, fully encrypted and anonymous
 
 * wails build
 * run Unakite.exe in /build/bin
+
+
+### Documentation
+
+Documentation can be found ![HERE](https://github.com/NemikoDev/Unakite/blob/main/DOCS.md)

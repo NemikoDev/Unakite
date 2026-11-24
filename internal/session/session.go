@@ -92,6 +92,7 @@ type Session struct {
 	cur          *room
 	seq          atomic.Uint64
 	downloadDir  string
+	relay        *peer.AddrInfo
 }
 
 // create a new session with the given signaling client and event emitter.
@@ -117,7 +118,12 @@ func (s *Session) CreateRoom(ctx context.Context, nickname string) (string, erro
 	if err != nil {
 		return "", err
 	}
-	code, err := p2p.CreateRoom(ctx, s.sc, r.host)
+	var code string
+	if relay := s.relayInfo(); relay != nil {
+		code, err = p2p.CreateRoomViaRelay(ctx, s.sc, r.host, *relay)
+	} else {
+		code, err = p2p.CreateRoom(ctx, s.sc, r.host)
+	}
 	if err != nil {
 		s.abort(r)
 		return "", err
@@ -251,11 +257,26 @@ func (s *Session) newRoom(nickname string, hosting bool) (*room, error) {
 		return nil, err
 	}
 
+	s.mu.Lock()
+	relay := s.relay
+	s.mu.Unlock()
+
 	r := &room{}
 	var opts []libp2p.Option
 	if hosting {
-		r.gate = p2p.NewRoomGate()
+		var exempt []peer.ID
+		if relay != nil {
+			exempt = append(exempt, relay.ID)
+		}
+		r.gate = p2p.NewRoomGate(exempt...)
 		opts = append(opts, libp2p.ConnectionGater(r.gate))
+	}
+	if relay != nil {
+		if hosting {
+			opts = append(opts, p2p.HostRelayOptions(*relay)...)
+		} else {
+			opts = append(opts, p2p.GuestRelayOptions()...)
+		}
 	}
 	h, err := p2p.NewHost(priv, opts...)
 	if err != nil {
@@ -460,4 +481,22 @@ func (s *Session) State() State {
 		st.ClosesAt = r.closesAt.UnixMilli()
 	}
 	return st
+}
+
+// sets the relay to be used for the session. The relay must have at least one network address.
+func (s *Session) UseRelay(info peer.AddrInfo) error {
+	if len(info.Addrs) == 0 {
+		return errors.New("relay address needs a network part, e.g. /ip4/1.2.3.4/tcp/4001/p2p/<id>")
+	}
+	s.mu.Lock()
+	s.relay = &info
+	s.mu.Unlock()
+	return nil
+}
+
+// retrieves the relay information currently set for the session. Returns nil if no relay is set.
+func (s *Session) relayInfo() *peer.AddrInfo {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.relay
 }

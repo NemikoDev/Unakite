@@ -4,9 +4,11 @@ import (
 	"Unakite/internal/session"
 	"Unakite/internal/signaling"
 	"context"
+	"log"
 	"os"
 	"time"
 
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
@@ -33,6 +35,15 @@ func (a *App) startup(ctx context.Context) {
 	a.session = session.New(signaling.NewClient(url), func(event string, payload any) {
 		runtime.EventsEmit(a.ctx, event, payload)
 	})
+	if raw := os.Getenv("UNAKITE_RELAY_ADDR"); raw != "" {
+		info, err := peer.AddrInfoFromString(raw)
+		if err == nil {
+			err = a.session.UseRelay(*info)
+		}
+		if err != nil {
+			log.Printf("ignoring UNAKITE_RELAY_ADDR: %v", err)
+		}
+	}
 }
 
 func (a *App) shutdown(ctx context.Context) {

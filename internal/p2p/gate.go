@@ -14,12 +14,18 @@ import (
 var _ connmgr.ConnectionGater = (*RoomGate)(nil)
 
 type RoomGate struct {
-	mu    sync.Mutex
-	guest peer.ID
+	mu     sync.Mutex
+	guest  peer.ID
+	exempt map[peer.ID]bool
 }
 
-func NewRoomGate() *RoomGate {
-	return &RoomGate{}
+// creates a new RoomGate with the specified exempt peer IDs
+func NewRoomGate(exempt ...peer.ID) *RoomGate {
+	g := &RoomGate{exempt: make(map[peer.ID]bool, len(exempt))}
+	for _, id := range exempt {
+		g.exempt[id] = true
+	}
+	return g
 }
 
 // returns the guest peer id
@@ -32,6 +38,9 @@ func (g *RoomGate) Guest() peer.ID {
 // determines if the peer is allowed to connect to the room
 func (g *RoomGate) InterceptSecured(dir network.Direction, p peer.ID, _ network.ConnMultiaddrs) bool {
 	if dir == network.DirOutbound {
+		return true
+	}
+	if g.exempt[p] {
 		return true
 	}
 	g.mu.Lock()

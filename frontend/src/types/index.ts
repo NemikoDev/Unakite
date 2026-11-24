@@ -18,7 +18,10 @@ export interface FileTransferItem {
   fileSize: number;
   direction: 'sending' | 'receiving';
   progress: number; 
-  status: 'in-progress' | 'complete' | 'failed';
+  status: 'awaiting' | 'in-progress' | 'complete' | 'failed' | 'rejected';
+  error?: string;
+  path?: string;
+  startedAt: number;
 }
 
 export type RoomStatus = 'idle' | 'creating' | 'joining' | 'connected';

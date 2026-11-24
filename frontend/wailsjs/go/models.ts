@@ -1,5 +1,33 @@
 export namespace session {
 	
+	export class FileTransfer {
+	    id: string;
+	    fileName: string;
+	    fileSize: number;
+	    direction: string;
+	    progress: number;
+	    status: string;
+	    error?: string;
+	    path?: string;
+	    startedAt: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new FileTransfer(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.fileName = source["fileName"];
+	        this.fileSize = source["fileSize"];
+	        this.direction = source["direction"];
+	        this.progress = source["progress"];
+	        this.status = source["status"];
+	        this.error = source["error"];
+	        this.path = source["path"];
+	        this.startedAt = source["startedAt"];
+	    }
+	}
 	export class PeerInfo {
 	    id: string;
 	    nickname: string;
@@ -59,6 +87,7 @@ export namespace session {
 	    self: PeerInfo;
 	    peer?: PeerInfo;
 	    closesAt: number;
+	    transfers: FileTransfer[];
 	
 	    static createFrom(source: any = {}) {
 	        return new State(source);
@@ -71,6 +100,7 @@ export namespace session {
 	        this.self = this.convertValues(source["self"], PeerInfo);
 	        this.peer = this.convertValues(source["peer"], PeerInfo);
 	        this.closesAt = source["closesAt"];
+	        this.transfers = this.convertValues(source["transfers"], FileTransfer);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

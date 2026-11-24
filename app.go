@@ -61,4 +61,21 @@ func (a *App) GetState() session.State {
 	return a.session.State()
 }
 
+// opens a file dialog to select a file to send and sends it via the session
+func (a *App) SendFile() error {
+	path, err := runtime.OpenFileDialog(a.ctx, runtime.OpenDialogOptions{
+		Title: "Choose a file to send",
+	})
+	if err != nil {
+		return err
+	}
+	if path == "" {
+		return nil
+	}
+	return a.session.SendFile(path)
+}
+
+func (a *App) AcceptFile(id string) error  { return a.session.AcceptFile(id) }
+func (a *App) DeclineFile(id string) error { return a.session.DeclineFile(id) }
+
 func (a *App) LeaveRoom() { a.session.Leave() }

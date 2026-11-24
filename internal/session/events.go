@@ -55,4 +55,5 @@ type FileTransfer struct {
 	Status    string `json:"status"`
 	Error     string `json:"error,omitempty"`
 	Path      string `json:"path,omitempty"`
+	StartedAt int64  `json:"startedAt"`
 }

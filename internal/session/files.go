@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/libp2p/go-libp2p/core/peer"
 
@@ -135,7 +136,11 @@ func (s *Session) publish(r *room, t FileTransfer) {
 		s.mu.Unlock()
 		return
 	}
-	if _, seen := r.transfers[t.ID]; !seen {
+	prev, seen := r.transfers[t.ID]
+	if seen {
+		t.StartedAt = prev.StartedAt
+	} else {
+		t.StartedAt = time.Now().UnixMilli()
 		r.order = append(r.order, t.ID)
 	}
 	r.transfers[t.ID] = t

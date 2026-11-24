@@ -2,10 +2,10 @@ import { useEffect, useRef, useState } from 'react';
 import { Layout } from './components/Layout';
 import { RoomJoin } from './components/room/RoomJoin';
 import { ChatView } from './components/chat/ChatView';
-import { ChatMessage, Peer, PeerLeft } from './types';
-import { EVENT_MESSAGE, EVENT_PEER_JOINED, EVENT_PEER_LEFT, EVENT_ROOM_CLOSED } from './types/events';
+import { ChatMessage, FileTransferItem, Peer, PeerLeft } from './types';
+import { EVENT_MESSAGE, EVENT_PEER_JOINED, EVENT_PEER_LEFT, EVENT_ROOM_CLOSED, EVENT_FILE_TRANSFER } from './types/events';
 import { useWailsEvent } from './hooks/useWailsEvent';
-import { CreateRoom, JoinRoom, SendMessage, LeaveRoom, GetState } from '../wailsjs/go/main/App';
+import { CreateRoom, JoinRoom, SendMessage, LeaveRoom, GetState, SendFile, AcceptFile, DeclineFile } from '../wailsjs/go/main/App';
 
 interface ActiveRoom {
   code: string;
@@ -15,22 +15,36 @@ interface ActiveRoom {
 export default function App() {
   const [room, setRoom] = useState<ActiveRoom | null>(null);
   const [peer, setPeer] = useState<Peer | null>(null);
-  const [closesAt, setClosesAt] = useState<number | null>(null); // set while the room is winding down
+  const [closesAt, setClosesAt] = useState<number | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const systemSeq = useRef(0);
+  const [transfers, setTransfers] = useState<FileTransferItem[]>([]);
 
   const resetChat = () => {
     setMessages([]);
     setPeer(null);
     setClosesAt(null);
+    setTransfers([]);
   };
 
   const addMessage = (m: ChatMessage) =>
     setMessages((prev) => (prev.some((x) => x.id === m.id) ? prev : [...prev, m]));
 
-  // Local-only lines like "Bob has left the chat". The "sys-" prefix can't clash with Go's numeric IDs.
+  const isFinished = (t: FileTransferItem) =>
+    t.status === 'complete' || t.status === 'failed' || t.status === 'rejected';
+
+  const upsertTransfer = (t: FileTransferItem) =>
+    setTransfers((prev) => {
+      const i = prev.findIndex((x) => x.id === t.id);
+      if (i < 0) return [...prev, t];
+      if (isFinished(prev[i]) && !isFinished(t)) return prev;
+      const next = [...prev];
+      next[i] = t;
+      return next;
+    });
+
   const addSystemLine = (text: string) =>
     addMessage({
       id: `sys-${++systemSeq.current}`,
@@ -48,6 +62,7 @@ export default function App() {
           setRoom({ code: s.code, self: s.self });
           setPeer(s.peer ?? null);
           setClosesAt(s.closesAt || null);
+          setTransfers((s.transfers ?? []) as FileTransferItem[]);
         }
       })
       .catch((e) => setError(String(e)));
@@ -75,6 +90,7 @@ export default function App() {
           : 'The room was closed.',
     );
   });
+  useWailsEvent<FileTransferItem>(EVENT_FILE_TRANSFER, upsertTransfer);
 
   const handleCreateRoom = async (nickname: string) => {
     setBusy(true);
@@ -93,7 +109,7 @@ export default function App() {
   const handleJoinRoom = async (nickname: string, code: string) => {
     setBusy(true);
     setError(null);
-    resetChat(); // BEFORE the call, so the host's early hello isn't wiped
+    resetChat();
     try {
       await JoinRoom(nickname, code);
       setRoom({ code: code.trim().toUpperCase(), self: { id: 'self', nickname } });
@@ -118,6 +134,16 @@ export default function App() {
     resetChat();
   };
 
+  const handleSendFile = async () => {
+    try {
+      await SendFile();
+    } catch (e) {
+      setError(String(e));
+    }
+  };
+  const handleAcceptFile = (id: string) => AcceptFile(id).catch((e) => setError(String(e)));
+  const handleDeclineFile = (id: string) => DeclineFile(id).catch((e) => setError(String(e)));
+
   return (
     <Layout>
       {error && (
@@ -135,9 +161,11 @@ export default function App() {
           peer={peer}
           closesAt={closesAt}
           messages={messages}
-          transfers={[]}
+          transfers={transfers}
           onSendMessage={handleSendMessage}
-          onSendFile={() => {}}
+          onSendFile={handleSendFile}
+          onAcceptFile={handleAcceptFile}
+          onDeclineFile={handleDeclineFile}
           onLeave={handleLeave}
         />
       )}

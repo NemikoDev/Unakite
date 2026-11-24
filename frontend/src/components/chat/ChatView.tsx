@@ -13,9 +13,11 @@ interface ChatViewProps {
   onSendMessage: (content: string) => void;
   onSendFile: () => void;
   onLeave: () => void;
+  onAcceptFile: (id: string) => void;
+  onDeclineFile: (id: string) => void;
 }
 
-export function ChatView({ roomCode, peer, messages, transfers, closesAt, onSendMessage, onSendFile, onLeave }: ChatViewProps) {
+export function ChatView({ roomCode, peer, messages, transfers, closesAt, onSendMessage, onSendFile, onLeave, onAcceptFile, onDeclineFile }: ChatViewProps) {
   const [draft, setDraft] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
   const stickToBottom = useRef(true);
@@ -41,6 +43,16 @@ export function ChatView({ roomCode, peer, messages, transfers, closesAt, onSend
     setDraft('');
   };
 
+  type TimelineItem =
+    | { key: string; at: number; message: ChatMessage }
+    | { key: string; at: number; transfer: FileTransferItem };
+
+  const timeline: TimelineItem[] = [
+    ...messages.map((m) => ({ key: `m-${m.id}`, at: m.timestamp, message: m })),
+    ...transfers.map((t) => ({ key: `t-${t.id}`, at: t.startedAt, transfer: t })),
+  ].sort((a, b) => a.at - b.at);
+
+
   return (
     <div className="flex-1 min-h-0 flex flex-col">
       <header className="shrink-0 border-b border-zinc-800 px-4 py-3 flex items-center justify-between">
@@ -57,23 +69,27 @@ export function ChatView({ roomCode, peer, messages, transfers, closesAt, onSend
       </header>
 
       <div ref={scrollRef} onScroll={handleScroll} className="flex-1 min-h-0 overflow-y-auto px-4 py-4 space-y-3">
-        {messages.map((m) =>
-          m.kind === 'system' ? (
-            <div key={m.id} className="text-center text-xs text-zinc-500 py-1">{m.content}</div>
+        {timeline.map((item) => {
+          if ('transfer' in item) {
+            const t = item.transfer;
+            return (
+              <div key={item.key} className={`flex ${t.direction === 'sending' ? 'justify-end' : 'justify-start'}`}>
+                <FileTransferBar item={t} onAccept={onAcceptFile} onDecline={onDeclineFile} />
+              </div>
+            );
+          }
+          const m = item.message;
+          return m.kind === 'system' ? (
+            <div key={item.key} className="text-center text-xs text-zinc-500 py-1">{m.content}</div>
           ) : (
-            <div key={m.id} className={`flex flex-col ${m.isOwn ? 'items-end' : 'items-start'}`}>
+            <div key={item.key} className={`flex flex-col ${m.isOwn ? 'items-end' : 'items-start'}`}>
               <span className="text-[10px] text-zinc-500 mb-0.5">{m.sender.nickname}</span>
               <div className={`max-w-xs px-3 py-2 rounded-md text-sm break-words whitespace-pre-wrap ${m.isOwn ? 'bg-blue-600 text-white' : 'bg-zinc-800 text-zinc-100'}`}>
                 {m.content}
               </div>
             </div>
-          ),
-        )}
-        {transfers.map((t) => (
-          <div key={t.id} className={`flex ${t.direction === 'sending' ? 'justify-end' : 'justify-start'}`}>
-            <FileTransferBar item={t} />
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       <div className="shrink-0 border-t border-zinc-800 p-3 flex gap-2">

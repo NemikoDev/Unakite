@@ -63,7 +63,7 @@ Timeouts: 2 minutes for a human to decide, 30 seconds of idle silence during tra
     * The receiver generates its own transfer IDs (r1, r2...), and the sender uses s1... The remote side never chooses an identifier.
 * FileService reports through two callbacks the session supplies: OnOffer (blocks while the human decides) and OnProgress (throttled to about 10 updates per second per transfer).
 
-#### 6. Signaling
+#### 5. Signaling
 
 Store:
 
@@ -83,14 +83,14 @@ Client:
 
 Wraps both endpoints.
 
-#### 7. p2p/room.go and p2p/relay.go
+#### 6. p2p/room.go and p2p/relay.go
 
 * CreateRoom(ctx, sc, h): publish this host's addresses, get a code.
 * JoinRoom(ctx, sc, h, code): consume the code, then ConnectAddrs to whatever it returns.
 * Relay: CreateRoomViaRelay waits until the host holds a reservation on the relay (a /p2p-circuit address appears), then publishes only relay addresses of the form <relay>/p2p/<relayID>/p2p-circuit/p2p/<hostID>. LAN addresses are not published.
 * HostRelayOptions / GuestRelayOptions set ForceReachabilityPrivate, enable hole punching, and for the host, register the static relay for auto-reservation.
 
-#### 8. Session
+#### 7. Session
 
 Owns at most one room at a time and everything inside.
 
